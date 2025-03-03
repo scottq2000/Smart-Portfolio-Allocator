@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Portfolio Allocator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --dark-bg: #232a31; /* dark grey with navy hint */
+      --dark-text: #ffffff;
+      /* Using a subtle medium blue for dark mode inputs */
+      --dark-input-bg: #1E88E5; 
+      --dark-input-text: #ffffff;
+      --light-bg: #f9f9f9;
+      --light-text: #333;
+      --light-input-bg: #ffffff;
+      --light-input-text: #333;
+      
+      --remove-btn: #FF0000; /* pure red */
+      --add-btn:    #00FF00; /* pure green */
+      --calc-btn:   #00FFFF; /* cyan for Calculate Allocations */
+      --allocate-all-btn: #FFD700; /* gold for Allocate All */
+      
+      --input-scale: 0.85;
+      --label-font:  0.85em;
+      --field-font:  0.8em;
+    }
+    
+    /* Fade-in animation for popups */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      font-size: 110%;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    
+    /* Theme styles */
+    body.light-mode {
+      background-color: var(--light-bg);
+      color: var(--light-text);
+    }
+    body.light-mode input, body.light-mode select {
+      background-color: var(--light-input-bg);
+      color: var(--light-input-text);
+    }
+    body.dark-mode {
+      background-color: var(--dark-bg);
+      color: var(--dark-text);
+    }
+    body.dark-mode input, body.dark-mode select {
+      background-color: var(--dark-input-bg);
+      color: var(--dark-input-text);
+      border: 1px solid #666;
+    }
+    
+    /* Headings */
+    .main-heading {
+      text-align: center;
+      margin: 20px 0 0 0;
+    }
+    .subheading {
+      text-align: center;
+      margin: 0 0 20px 0;
+      font-size: 0.9em;
+    }
+    
+    /* Icon Row */
+    .icon-row {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .icon-field {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .icon-field label {
+      font-size: 0.9em;
+      margin-bottom: 5px;
+    }
+    .icon-row button {
+      background: none;
+      border: none;
+      font-size: 1.2em;
+      cursor: pointer;
+      position: relative;
+    }
+    .theme-status {
+      position: absolute;
+      top: -15px;
+      right: 0;
+      font-size: 0.8em;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    /* Container */
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    /* Flex layout */
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+    .flex-col {
+      display: flex;
+      flex-direction: column;
+      margin-right: 30px;
+      margin-bottom: 10px;
+      align-items: flex-start;
+    }
+    
+    label {
+      margin-bottom: 4px;
+      font-size: var(--label-font);
+    }
+    /* Tooltips added via title attributes in the HTML below */
+    input, select {
+      transform: scale(var(--input-scale));
+      transform-origin: top left;
+      padding: 4px 6px;
+      font-size: var(--field-font);
+      border: 1px solid #ccc;
+      outline: none;
+    }
+    button {
+      padding: 4px 10px;
+      font-size: 0.9em;
+      border-radius: 0;
+      border: none;
+      margin: 5px;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    button:hover {
+      transform: scale(1.05);
+      opacity: 0.9;
+    }
+    
+    .btn-remove {
+      background-color: var(--remove-btn);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 24px;
+      margin-top: 4px;
+    }
+    .btn-add {
+      background-color: var(--add-btn);
+      color: #000;
+    }
+    .btn-get-rates {
+      background-color: var(--remove-btn);
+      color: #fff;
+    }
+    .btn-calculate {
+      background-color: var(--calc-btn);
+      color: #000;
+    }
+    .btn-allocate-all {
+      background-color: var(--allocate-all-btn);
+      color: #000;
+    }
+    .btn-reset {
+      background-color: #888; /* neutral gray */
+      color: #fff;
+    }
+    
+    /* Positions */
+    .positions-container {
+      margin-bottom: 20px;
+      display: inline-block;
+      text-align: left;
+    }
+    .positions-header-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .position-row {
+      display: flex;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+    .position-field {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      margin-right: 15px;
+    }
+    .ticker-input {
+      width: 70px;
+    }
+    .percent-select {
+      width: 80px;
+    }
+    .base-input, .stable-input,
+    .actual-base-input, .actual-stable-input,
+    .remain-base-input, .remain-stable-input {
+      width: 80px;
+      height: 24px;
+    }
+    
+    /* Check box */
+    .check-label {
+      font-size: var(--label-font);
+      margin-bottom: 2px;
+    }
+    .check-box {
+      width: 24px;
+      height: 24px;
+      border: 1px solid #999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1em;
+      user-select: none;
+      margin-left: 5px;
+      margin-top: 2px;
+    }
+    .check-active {
+      background-color: #0f0;
+      color: #000;
+    }
+    
+    /* Highlight negative remains */
+    .negative-remain {
+      background-color: lightcoral !important;
+    }
+    
+    /* Tables */
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 90%;
+      max-width: 1000px;
+      font-size: 0.9em;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    
+    /* Download Popup (fixed overlay) */
+    .popup-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      animation: fadeIn 0.3s ease;
+    }
+    .popup {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 300px;
+      text-align: left;
+      color: #000;
+    }
+    body.dark-mode #downloadPopup .popup {
+      background: #333 !important;
+      color: #fff !important;
+    }
+    .popup button {
+      margin: 5px 0;
+      width: 100%;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="light-mode">
+  <!-- PDF Creation Script -->
+  <script>
+    function createPDF(content) {
+      const w = window.open("", "_blank");
+      if (!w) { alert("Popups blocked!"); return; }
+      let polishedHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8"/>
+        <title>Smart Portfolio Allocator Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 30px; color: #000; }
+          h1, h2 { text-align: center; margin: 0 0 15px; }
+          .header { text-align: center; margin-bottom: 15px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #999; padding: 8px; text-align: center; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <h1>Smart Portfolio Allocator Report</h1>
+        <div class="header">
+          <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+        </div>
+        ${content}
+      </body>
+      </html>`;
+      w.document.open();
+      w.document.write(polishedHTML);
+      w.document.close();
+      w.focus();
+      w.print();
+      w.close();
+    }
+  </script>
+  
+  <!-- Headings -->
+  <h1 class="main-heading">Smart Portfolio Allocator</h1>
+  <div class="subheading">© CSQ Global</div>
+  
+  <!-- Icon Row (Theme, Download, and Instructions icon) -->
+  <div class="icon-row">
+    <div class="icon-field">
+      <label>Theme</label>
+      <button id="themeToggleBtn" onclick="cycleTheme()">☀️
+        <span class="theme-status" id="themeStatus"></span>
+      </button>
+    </div>
+    <div class="icon-field">
+      <label>Download</label>
+      <button id="downloadBtn" onclick="showDownloadPopup()">⤵️</button>
+    </div>
+    <div class="icon-field">
+      <label>Instructions</label>
+      <button id="instrBtn" onclick="openInstructionsWindow()">📄</button>
+    </div>
+  </div>
+  
+  <!-- Download Popup -->
+  <div class="popup-bg" id="downloadPopup">
+    <div class="popup">
+      <p><strong>Choose Download Format:</strong></p>
+      <button onclick="downloadPDF()">Download as PDF</button>
+      <button onclick="downloadCSV()">Download as CSV</button>
+      <button onclick="emailReport()">Email Report</button>
+      <button onclick="closeDownloadPopup()">Cancel</button>
+    </div>
+  </div>
+  
+  <!-- Main App Container -->
+  <div class="container">
+    <!-- Top Inputs -->
+    <div class="flex-row">
+      <div class="flex-col">
+        <label for="baseCurrency" title="Select your base currency, e.g., AUD, USD, etc.">Base Currency</label>
+        <select id="baseCurrency" onchange="showImmediateConversions(); savePreferences();" title="Select your base currency">
+          <option value="AUD" selected>AUD</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="CAD">CAD</option>
+          <option value="CHF">CHF</option>
+          <option value="JPY">JPY</option>
+          <option value="CNY">CNY</option>
+          <option value="HKD">HKD</option>
+          <option value="NZD">NZD</option>
+          <option value="SEK">SEK</option>
+          <option value="SGD">SGD</option>
+          <option value="ZAR">ZAR</option>
+          <option value="INR">INR</option>
+          <option value="KRW">KRW</option>
+          <option value="AED">AED</option>
+          <option value="BRL">BRL</option>
+          <option value="MXN">MXN</option>
+          <option value="RUB">RUB</option>
+          <option value="TRY">TRY</option>
+        </select>
+      </div>
+      <div class="flex-col">
+        <label for="investmentAmount" title="Enter the total amount to invest.">Amount to Invest</label>
+        <input type="number" id="investmentAmount" step="any" placeholder="Enter amount" value="60000" oninput="showImmediateConversions(); savePreferences();" title="Enter your investment amount">
+      </div>
+      <div class="flex-col">
+        <button class="btn-reset" onclick="resetForm()">Reset All</button>
+      </div>
+    </div>
+    
+    <!-- Conversion Inputs -->
+    <div class="flex-row">
+      <div class="flex-col">
+        <label for="conversionCurrency" title="Select the currency to convert your investment into.">Conversion Currency</label>
+        <select id="conversionCurrency" onchange="showImmediateConversions(); savePreferences();" title="Select conversion currency">
+          <option value="AED" selected>AED</option>
+          <option value="AUD">AUD</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="CAD">CAD</option>
+          <option value="CHF">CHF</option>
+          <option value="JPY">JPY</option>
+          <option value="CNY">CNY</option>
+          <option value="HKD">HKD</option>
+          <option value="NZD">NZD</option>
+          <option value="SEK">SEK</option>
+          <option value="SGD">SGD</option>
+          <option value="ZAR">ZAR</option>
+          <option value="INR">INR</option>
+          <option value="KRW">KRW</option>
+          <option value="BRL">BRL</option>
+          <option value="MXN">MXN</option>
+          <option value="RUB">RUB</option>
+          <option value="TRY">TRY</option>
+        </select>
+      </div>
+      <div class="flex-col">
+        <label for="stablecoin" title="Select your preferred stablecoin.">Stablecoin</label>
+        <select id="stablecoin" onchange="showImmediateConversions(); savePreferences();" title="Select stablecoin">
+          <option value="USDT" selected>USDT</option>
+          <option value="USDC">USDC</option>
+        </select>
+      </div>
+      <div class="flex-col">
+        <label title="Click to update live exchange rates.">Live Rates</label>
+        <button class="btn-get-rates" onclick="updateExchangeRates()">Get Live Rates</button>
+      </div>
+    </div>
+    
+    <div id="immediateConversionDisplay" style="margin-bottom:15px;"></div>
+    
+    <!-- Category Splits -->
+    <div class="flex-row">
+      <div class="flex-col">
+        <label for="corePct" title="Select the percentage of your total investment allocated to Core positions.">Core % of Total</label>
+        <select id="corePct" onchange="savePreferences();" title="Core percentage">
+          <option value="0">0%</option>
+          <option value="5">5%</option>
+          <option value="10">10%</option>
+          <option value="15">15%</option>
+          <option value="20">20%</option>
+          <option value="25">25%</option>
+          <option value="30">30%</option>
+          <option value="35">35%</option>
+          <option value="40">40%</option>
+          <option value="45">45%</option>
+          <option value="50">50%</option>
+          <option value="55">55%</option>
+          <option value="60">60%</option>
+          <option value="65">65%</option>
+          <option value="70">70%</option>
+          <option value="75">75%</option>
+          <option value="80">80%</option>
+          <option value="85">85%</option>
+          <option value="90">90%</option>
+          <option value="95">95%</option>
+          <option value="100">100%</option>
+        </select>
+      </div>
+      <div class="flex-col">
+        <label for="specPct" title="Select the percentage allocated to Speculative positions.">Spec % of Total</label>
+        <select id="specPct" onchange="savePreferences();" title="Speculative percentage">
+          <option value="0">0%</option>
+          <option value="5">5%</option>
+          <option value="10">10%</option>
+          <option value="15">15%</option>
+          <option value="20">20%</option>
+          <option value="25">25%</option>
+          <option value="30">30%</option>
+          <option value="35">35%</option>
+          <option value="40">40%</option>
+          <option value="45">45%</option>
+          <option value="50">50%</option>
+          <option value="55">55%</option>
+          <option value="60">60%</option>
+          <option value="65">65%</option>
+          <option value="70">70%</option>
+          <option value="75">75%</option>
+          <option value="80">80%</option>
+          <option value="85">85%</option>
+          <option value="90">90%</option>
+          <option value="95">95%</option>
+          <option value="100">100%</option>
+        </select>
+      </div>
+      <div class="flex-col">
+        <label for="reservePct" title="Select the percentage allocated to Reserve positions.">Reserve % of Total</label>
+        <select id="reservePct" onchange="savePreferences();" title="Reserve percentage">
+          <option value="0">0%</option>
+          <option value="5">5%</option>
+          <option value="10">10%</option>
+          <option value="15">15%</option>
+          <option value="20">20%</option>
+          <option value="25">25%</option>
+          <option value="30">30%</option>
+          <option value="35">35%</option>
+          <option value="40">40%</option>
+          <option value="45">45%</option>
+          <option value="50">50%</option>
+          <option value="55">55%</option>
+          <option value="60">60%</option>
+          <option value="65">65%</option>
+          <option value="70">70%</option>
+          <option value="75">75%</option>
+          <option value="80">80%</option>
+          <option value="85">85%</option>
+          <option value="90">90%</option>
+          <option value="95">95%</option>
+          <option value="100">100%</option>
+        </select>
+      </div>
+    </div>
+    
+    <!-- Positions Sections -->
+    <div class="positions-container">
+      <div class="positions-header-row">
+        <h2 style="margin:0;">Core Positions</h2>
+        <button class="btn-calculate" onclick="calculateAllocations()">Calculate Allocations</button>
+      </div>
+      <div id="corePositionsList"></div>
+      <button class="btn-add" onclick="addPosition('core')">Add Core Position</button>
+    </div>
+    
+    <div class="positions-container">
+      <h2 style="margin:0;">Speculative Positions</h2>
+      <div id="specPositionsList"></div>
+      <button class="btn-add" onclick="addPosition('spec')">Add Spec Position</button>
+    </div>
+    
+    <div class="positions-container">
+      <h2 style="margin:0;">Reserve Positions</h2>
+      <div id="reservePositionsList"></div>
+      <div class="bottom-btn-row">
+        <button class="btn-add" onclick="addPosition('reserve')">Add Reserve Position</button>
+        <button class="btn-calculate" onclick="calculateAllocations()">Calculate Allocations</button>
+      </div>
+    </div>
+    
+    <!-- Allocate All & Reset Buttons -->
+    <div style="margin-top: 20px;">
+      <button class="btn-allocate-all" onclick="allocateAllRecommended()">Allocate All Recommended → Actual</button>
+      <button class="btn-reset" onclick="resetForm()">Reset All</button>
+    </div>
+    
+    <!-- Results Section -->
+    <div id="results"></div>
+  </div>
+  
+  <script>
+    let corePositions = [], specPositions = [], reservePositions = [];
+    let exchangeData = {};
+    
+    /* Save and load preferences for top inputs */
+    function savePreferences() {
+      localStorage.setItem("pref_baseCurrency", document.getElementById("baseCurrency").value);
+      localStorage.setItem("pref_investmentAmount", document.getElementById("investmentAmount").value);
+      localStorage.setItem("pref_conversionCurrency", document.getElementById("conversionCurrency").value);
+      localStorage.setItem("pref_stablecoin", document.getElementById("stablecoin").value);
+      localStorage.setItem("pref_corePct", document.getElementById("corePct").value);
+      localStorage.setItem("pref_specPct", document.getElementById("specPct").value);
+      localStorage.setItem("pref_reservePct", document.getElementById("reservePct").value);
+    }
+    function loadPreferences() {
+      const base = localStorage.getItem("pref_baseCurrency");
+      if (base) document.getElementById("baseCurrency").value = base;
+      const inv = localStorage.getItem("pref_investmentAmount");
+      if (inv) document.getElementById("investmentAmount").value = inv;
+      const conv = localStorage.getItem("pref_conversionCurrency");
+      if (conv) document.getElementById("conversionCurrency").value = conv;
+      const stable = localStorage.getItem("pref_stablecoin");
+      if (stable) document.getElementById("stablecoin").value = stable;
+      const corePct = localStorage.getItem("pref_corePct");
+      if (corePct) document.getElementById("corePct").value = corePct;
+      const specPct = localStorage.getItem("pref_specPct");
+      if (specPct) document.getElementById("specPct").value = specPct;
+      const reservePct = localStorage.getItem("pref_reservePct");
+      if (reservePct) document.getElementById("reservePct").value = reservePct;
+    }
+    
+    /* Reset form: clear all preferences, positions, immediate conversion display, and reset dropdowns to zero */
+    function resetForm() {
+      if (confirm("Are you sure you want to reset all inputs and positions?")) {
+        localStorage.removeItem("pref_baseCurrency");
+        localStorage.removeItem("pref_investmentAmount");
+        localStorage.removeItem("pref_conversionCurrency");
+        localStorage.removeItem("pref_stablecoin");
+        localStorage.removeItem("pref_corePct");
+        localStorage.removeItem("pref_specPct");
+        localStorage.removeItem("pref_reservePct");
+        localStorage.removeItem("corePositions");
+        localStorage.removeItem("specPositions");
+        localStorage.removeItem("reservePositions");
+        document.getElementById("baseCurrency").value = "AUD";
+        document.getElementById("investmentAmount").value = "";
+        document.getElementById("conversionCurrency").value = "AED";
+        document.getElementById("stablecoin").value = "USDT";
+        document.getElementById("corePct").value = "0";
+        document.getElementById("specPct").value = "0";
+        document.getElementById("reservePct").value = "0";
+        document.getElementById("immediateConversionDisplay").innerHTML = "";
+        corePositions = [];
+        specPositions = [];
+        reservePositions = [];
+        loadPositions();
+        renderAllPositions();
+        document.getElementById("results").innerHTML = "";
+      }
+    }
+    
+    /* Add/Remove/Render Positions */
+    function addPosition(cat) {
+      const id = cat + "-" + Date.now();
+      const newObj = {
+        id,
+        ticker: "",
+        percentOfFull: "",
+        baseAlloc: "",
+        stableAlloc: "",
+        actualBaseAlloc: "",
+        actualStableAlloc: "",
+        remainBase: "",
+        remainStable: "",
+        checked: false
+      };
+      if (cat === "core") corePositions.push(newObj);
+      else if (cat === "spec") specPositions.push(newObj);
+      else reservePositions.push(newObj);
+      savePositions();
+      renderAllPositions();
+    }
+    
+    function removePosition(cat, id) {
+      if (cat === "core") corePositions = corePositions.filter(p => p.id !== id);
+      else if (cat === "spec") specPositions = specPositions.filter(p => p.id !== id);
+      else reservePositions = reservePositions.filter(p => p.id !== id);
+      savePositions();
+      renderAllPositions();
+    }
+    
+    function renderAllPositions() {
+      const cList = document.getElementById("corePositionsList");
+      const sList = document.getElementById("specPositionsList");
+      const rList = document.getElementById("reservePositionsList");
+      cList.innerHTML = "";
+      sList.innerHTML = "";
+      rList.innerHTML = "";
+      
+      corePositions.forEach(pos => cList.appendChild(createPositionRow(pos, "core")));
+      specPositions.forEach(pos => sList.appendChild(createPositionRow(pos, "spec")));
+      reservePositions.forEach(pos => rList.appendChild(createPositionRow(pos, "reserve")));
+    }
+    
+    function createPositionRow(pos, cat) {
+      const row = document.createElement("div");
+      row.className = "position-row";
+      
+      // Ticker
+      const tickerWrap = document.createElement("div");
+      tickerWrap.className = "position-field";
+      const tickerLabel = document.createElement("label");
+      tickerLabel.textContent = "Ticker";
+      const tickerInput = document.createElement("input");
+      tickerInput.type = "text";
+      tickerInput.classList.add("ticker-input");
+      tickerInput.value = pos.ticker;
+      tickerInput.title = "Enter the ticker symbol for this position";
+      tickerInput.onchange = () => {
+        pos.ticker = tickerInput.value;
+        savePositions();
+      };
+      tickerWrap.appendChild(tickerLabel);
+      tickerWrap.appendChild(tickerInput);
+      
+      // Percent of Full
+      const pctWrap = document.createElement("div");
+      pctWrap.className = "position-field";
+      const pctLabel = document.createElement("label");
+      pctLabel.textContent = "Select %";
+      const pctSel = document.createElement("select");
+      pctSel.innerHTML = `
+        <option value="">(Select %)</option>
+        <option value="0.25">25%</option>
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="1">100%</option>
+        <option value="2">200%</option>
+        <option value="3">300%</option>
+      `;
+      pctSel.value = pos.percentOfFull;
+      pctSel.classList.add("percent-select");
+      pctSel.title = "Select the share percentage for this position";
+      pctSel.onchange = () => {
+        pos.percentOfFull = pctSel.value;
+        savePositions();
+      };
+      pctWrap.appendChild(pctLabel);
+      pctWrap.appendChild(pctSel);
+      
+      // Recommended Base Alloc
+      const baseWrap = document.createElement("div");
+      baseWrap.className = "position-field";
+      const baseLabel = document.createElement("label");
+      baseLabel.textContent = "Base Alloc";
+      const baseInput = document.createElement("input");
+      baseInput.type = "text";
+      baseInput.readOnly = true;
+      baseInput.classList.add("base-input");
+      baseInput.value = pos.baseAlloc || "";
+      baseWrap.appendChild(baseLabel);
+      baseWrap.appendChild(baseInput);
+      
+      // Recommended Stable Alloc
+      const stableWrap = document.createElement("div");
+      stableWrap.className = "position-field";
+      const stableLabel = document.createElement("label");
+      stableLabel.textContent = "Stable Alloc";
+      const stableInput = document.createElement("input");
+      stableInput.type = "text";
+      stableInput.readOnly = true;
+      stableInput.classList.add("stable-input");
+      stableInput.value = pos.stableAlloc || "";
+      stableWrap.appendChild(stableLabel);
+      stableWrap.appendChild(stableInput);
+      
+      // Actual Base Alloc
+      const abWrap = document.createElement("div");
+      abWrap.className = "position-field";
+      const abLabel = document.createElement("label");
+      abLabel.textContent = "Actual Base Alloc";
+      const abInput = document.createElement("input");
+      abInput.type = "number";
+      abInput.step = "any";
+      abInput.classList.add("actual-base-input");
+      abInput.value = pos.actualBaseAlloc || "";
+      abInput.title = "Enter the actual base allocation for this position";
+      abInput.onchange = () => {
+        pos.actualBaseAlloc = abInput.value;
+        computeActualStable(pos);
+        computeRemains(pos);
+        savePositions();
+        renderAllPositions();
+      };
+      abWrap.appendChild(abLabel);
+      abWrap.appendChild(abInput);
+      
+      // Actual Stable Alloc
+      const asWrap = document.createElement("div");
+      asWrap.className = "position-field";
+      const asLabel = document.createElement("label");
+      asLabel.textContent = "Actual Stable Alloc";
+      const asInput = document.createElement("input");
+      asInput.type = "number";
+      asInput.step = "any";
+      asInput.classList.add("actual-stable-input");
+      asInput.value = pos.actualStableAlloc || "";
+      asInput.title = "Enter the actual stable allocation for this position";
+      asInput.onchange = () => {
+        pos.actualStableAlloc = asInput.value;
+        computeActualBase(pos);
+        computeRemains(pos);
+        savePositions();
+        renderAllPositions();
+      };
+      asWrap.appendChild(asLabel);
+      asWrap.appendChild(asInput);
+      
+      // Remain Base
+      const rbWrap = document.createElement("div");
+      rbWrap.className = "position-field";
+      const rbLabel = document.createElement("label");
+      rbLabel.textContent = "Remain Base";
+      const rbInput = document.createElement("input");
+      rbInput.type = "text";
+      rbInput.readOnly = true;
+      rbInput.classList.add("remain-base-input");
+      rbInput.value = pos.remainBase || "";
+      rbWrap.appendChild(rbLabel);
+      rbWrap.appendChild(rbInput);
+      
+      // Remain Stable
+      const rsWrap = document.createElement("div");
+      rsWrap.className = "position-field";
+      const rsLabel = document.createElement("label");
+      rsLabel.textContent = "Remain Stable";
+      const rsInput = document.createElement("input");
+      rsInput.type = "text";
+      rsInput.readOnly = true;
+      rsInput.classList.add("remain-stable-input");
+      rsInput.value = pos.remainStable || "";
+      rsWrap.appendChild(rsLabel);
+      rsWrap.appendChild(rsInput);
+      
+      // Tick Box
+      const checkWrap = document.createElement("div");
+      checkWrap.className = "position-field";
+      const checkLabel = document.createElement("label");
+      checkLabel.className = "check-label";
+      checkLabel.textContent = "Tick";
+      const checkBox = document.createElement("div");
+      checkBox.className = "check-box";
+      if (pos.checked) {
+        checkBox.textContent = "✓";
+        checkBox.classList.add("check-active");
+      }
+      checkBox.onclick = () => {
+        pos.checked = !pos.checked;
+        if (pos.checked) {
+          checkBox.textContent = "✓";
+          checkBox.classList.add("check-active");
+        } else {
+          checkBox.textContent = "";
+          checkBox.classList.remove("check-active");
+        }
+        savePositions();
+      };
+      checkWrap.appendChild(checkLabel);
+      checkWrap.appendChild(checkBox);
+      
+      // Remove Button
+      const rmBtn = document.createElement("button");
+      rmBtn.className = "btn-remove";
+      rmBtn.textContent = "Remove";
+      rmBtn.onclick = () => removePosition(cat, pos.id);
+      
+      // Compute remains
+      computeRemains(pos);
+      
+      // Highlight row if remains negative
+      if (parseFloat(pos.remainBase) < 0 || parseFloat(pos.remainStable) < 0) {
+        row.classList.add("negative-remain");
+      } else {
+        row.classList.remove("negative-remain");
+      }
+      
+      // Append fields
+      row.appendChild(tickerWrap);
+      row.appendChild(pctWrap);
+      row.appendChild(baseWrap);
+      row.appendChild(stableWrap);
+      row.appendChild(abWrap);
+      row.appendChild(asWrap);
+      row.appendChild(rbWrap);
+      row.appendChild(rsWrap);
+      row.appendChild(checkWrap);
+      row.appendChild(rmBtn);
+      
+      return row;
+    }
+    
+    /* Auto-calculate actual values */
+    function computeActualStable(pos) {
+      const baseCur = document.getElementById("baseCurrency").value;
+      const rateToUSD = getRate(baseCur, "USD");
+      if (!rateToUSD) return;
+      let bVal = parseFloat(pos.actualBaseAlloc || "0");
+      if (isNaN(bVal)) bVal = 0;
+      let sVal = bVal * rateToUSD;
+      sVal = Math.round(sVal * 100) / 100;
+      pos.actualStableAlloc = sVal.toString();
+    }
+    
+    function computeActualBase(pos) {
+      const baseCur = document.getElementById("baseCurrency").value;
+      const rateToUSD = getRate(baseCur, "USD");
+      if (!rateToUSD) return;
+      let sVal = parseFloat(pos.actualStableAlloc || "0");
+      if (isNaN(sVal)) sVal = 0;
+      let bVal = sVal / rateToUSD;
+      bVal = Math.round(bVal * 100) / 100;
+      pos.actualBaseAlloc = bVal.toString();
+    }
+    
+    function computeRemains(pos) {
+      let recBase = parseFloat(pos.baseAlloc || "0");
+      let recStable = parseFloat(pos.stableAlloc || "0");
+      let actBase = parseFloat(pos.actualBaseAlloc || "0");
+      let actStable = parseFloat(pos.actualStableAlloc || "0");
+      let rb = recBase - actBase;
+      let rs = recStable - actStable;
+      rb = Math.round(rb * 100) / 100;
+      rs = Math.round(rs * 100) / 100;
+      pos.remainBase = rb.toString();
+      pos.remainStable = rs.toString();
+    }
+    
+    /* "Allocate All Recommended" button */
+    function allocateAllRecommended() {
+      [...corePositions, ...specPositions, ...reservePositions].forEach(pos => {
+        pos.actualBaseAlloc = pos.baseAlloc;
+        pos.actualStableAlloc = pos.stableAlloc;
+        computeRemains(pos);
+      });
+      savePositions();
+      renderAllPositions();
+    }
+    
+    /* Reset all fields when "Reset All" is clicked */
+    function resetForm() {
+      if (confirm("Are you sure you want to reset all inputs and positions?")) {
+        localStorage.removeItem("pref_baseCurrency");
+        localStorage.removeItem("pref_investmentAmount");
+        localStorage.removeItem("pref_conversionCurrency");
+        localStorage.removeItem("pref_stablecoin");
+        localStorage.removeItem("pref_corePct");
+        localStorage.removeItem("pref_specPct");
+        localStorage.removeItem("pref_reservePct");
+        localStorage.removeItem("corePositions");
+        localStorage.removeItem("specPositions");
+        localStorage.removeItem("reservePositions");
+        document.getElementById("baseCurrency").value = "AUD";
+        document.getElementById("investmentAmount").value = "";
+        document.getElementById("conversionCurrency").value = "AED";
+        document.getElementById("stablecoin").value = "USDT";
+        document.getElementById("corePct").value = "0";
+        document.getElementById("specPct").value = "0";
+        document.getElementById("reservePct").value = "0";
+        document.getElementById("immediateConversionDisplay").innerHTML = "";
+        corePositions = [];
+        specPositions = [];
+        reservePositions = [];
+        loadPositions();
+        renderAllPositions();
+        document.getElementById("results").innerHTML = "";
+      }
+    }
+    
+    /* Save and load positions */
+    function savePositions() {
+      localStorage.setItem("corePositions", JSON.stringify(corePositions));
+      localStorage.setItem("specPositions", JSON.stringify(specPositions));
+      localStorage.setItem("reservePositions", JSON.stringify(reservePositions));
+    }
+    
+    function loadPositions() {
+      let c = localStorage.getItem("corePositions");
+      let s = localStorage.getItem("specPositions");
+      let r = localStorage.getItem("reservePositions");
+      corePositions = c ? JSON.parse(c) : [];
+      specPositions = s ? JSON.parse(s) : [];
+      reservePositions = r ? JSON.parse(r) : [];
+      
+      function ensureFields(arr) {
+        arr.forEach(o => {
+          if (o.actualBaseAlloc === undefined) o.actualBaseAlloc = "";
+          if (o.actualStableAlloc === undefined) o.actualStableAlloc = "";
+          if (o.remainBase === undefined) o.remainBase = "";
+          if (o.remainStable === undefined) o.remainStable = "";
+        });
+      }
+      ensureFields(corePositions);
+      ensureFields(specPositions);
+      ensureFields(reservePositions);
+      
+      if (corePositions.length === 0) {
+        corePositions.push({
+          id: "core-" + Date.now(),
+          ticker: "",
+          percentOfFull: "",
+          baseAlloc: "",
+          stableAlloc: "",
+          actualBaseAlloc: "",
+          actualStableAlloc: "",
+          remainBase: "",
+          remainStable: "",
+          checked: false
+        });
+      }
+      if (specPositions.length === 0) {
+        specPositions.push({
+          id: "spec-" + Date.now(),
+          ticker: "",
+          percentOfFull: "",
+          baseAlloc: "",
+          stableAlloc: "",
+          actualBaseAlloc: "",
+          actualStableAlloc: "",
+          remainBase: "",
+          remainStable: "",
+          checked: false
+        });
+      }
+      if (reservePositions.length === 0) {
+        reservePositions.push({
+          id: "reserve-" + Date.now(),
+          ticker: "",
+          percentOfFull: "",
+          baseAlloc: "",
+          stableAlloc: "",
+          actualBaseAlloc: "",
+          actualStableAlloc: "",
+          remainBase: "",
+          remainStable: "",
+          checked: false
+        });
+      }
+    }
+    
+    /* Live Exchange Rates */
+    async function updateExchangeRates() {
+      const base = document.getElementById("baseCurrency").value;
+      try {
+        const resp = await fetch(`https://api.exchangerate-api.com/v4/latest/${base}`);
+        if (!resp.ok) throw new Error("Bad response");
+        const data = await resp.json();
+        exchangeData[base] = data;
+        alert("Exchange rates updated!");
+        showImmediateConversions();
+      } catch (err) {
+        alert("Could not fetch live rates. Using old or no data.");
+      }
+    }
+    
+    function getRate(base, target) {
+      if (!exchangeData[base] || !exchangeData[base].rates) return null;
+      if (base === target) return 1;
+      return exchangeData[base].rates[target] || null;
+    }
+    
+    function showImmediateConversions() {
+      const base = document.getElementById("baseCurrency").value;
+      const amount = parseFloat(document.getElementById("investmentAmount").value) || 0;
+      const conv = document.getElementById("conversionCurrency").value;
+      const stable = document.getElementById("stablecoin").value;
+      
+      const disp = document.getElementById("immediateConversionDisplay");
+      disp.innerHTML = "";
+      
+      const rateToConv = getRate(base, conv);
+      const rateToUSD = getRate(base, "USD");
+      if (rateToConv === null || rateToUSD === null) {
+        disp.innerHTML = `<p style="color:red;">No live exchange rate data. Click "Get Live Rates".</p>`;
+        return;
+      }
+      const convVal = amount * rateToConv;
+      const stableVal = amount * rateToUSD;
+      disp.innerHTML = `
+        <p><strong>Immediate Conversion:</strong><br/>
+        ${amount.toLocaleString()} ${base} = ${convVal.toLocaleString()} ${conv},
+        = ${stableVal.toLocaleString()} ${stable}
+        </p>
+      `;
+    }
+    
+    /* Calculate Allocations & Build Results Tables */
+    function calculateAllocations() {
+      const base = document.getElementById("baseCurrency").value;
+      const amount = parseFloat(document.getElementById("investmentAmount").value) || 0;
+      const conv = document.getElementById("conversionCurrency").value;
+      const stable = document.getElementById("stablecoin").value;
+      const resultsDiv = document.getElementById("results");
+      
+      if (!amount) {
+        resetAll(0);
+        savePositions();
+        renderAllPositions();
+        resultsDiv.innerHTML = "";
+        return;
+      }
+      
+      const cPct = parseInt(document.getElementById("corePct").value) || 0;
+      const sPct = parseInt(document.getElementById("specPct").value) || 0;
+      const rPct = parseInt(document.getElementById("reservePct").value) || 0;
+      const totalPct = cPct + sPct + rPct;
+      if (totalPct !== 100) {
+        const proceed = confirm(`Warning: categories total ${totalPct}%. Continue anyway?`);
+        if (!proceed) return;
+      }
+      
+      const rounding = parseFloat(prompt("Enter rounding increment (e.g. 500):", "500")) || 500;
+      const rateToConv = getRate(base, conv);
+      const rateToUSD = getRate(base, "USD");
+      if (!rateToConv || !rateToUSD) {
+        alert("No valid exchange rates. Please Get Live Rates first.");
+        return;
+      }
+      
+      function roundToNearest(val, inc) { return Math.round(val / inc) * inc; }
+      const coreBudget = (cPct / 100) * amount;
+      const specBudget = (sPct / 100) * amount;
+      const reserveBudget = (rPct / 100) * amount;
+      
+      function allocateCategory(arr, budget) {
+        let sumFactors = arr.reduce((acc, x) => acc + parseFloat(x.percentOfFull || 0), 0);
+        if (sumFactors === 0) sumFactors = 1;
+        arr.forEach(p => {
+          const factor = parseFloat(p.percentOfFull || 0);
+          const raw = (factor / sumFactors) * budget;
+          const allocBase = roundToNearest(raw, rounding);
+          const allocStable = roundToNearest(allocBase * rateToUSD, rounding);
+          p.baseAlloc = allocBase.toString();
+          p.stableAlloc = allocStable.toString();
+          if (allocBase === 0) {
+            p.actualBaseAlloc = "0";
+            p.actualStableAlloc = "0";
+            p.remainBase = "0";
+            p.remainStable = "0";
+          }
+        });
+      }
+      
+      allocateCategory(corePositions, coreBudget);
+      allocateCategory(specPositions, specBudget);
+      allocateCategory(reservePositions, reserveBudget);
+      
+      savePositions();
+      renderAllPositions();
+      
+      // Build Recommended Allocations Table
+      const allPositions = [
+        ...corePositions.map(x => ({ cat: "Core", ...x })),
+        ...specPositions.map(x => ({ cat: "Speculative", ...x })),
+        ...reservePositions.map(x => ({ cat: "Reserve", ...x }))
+      ];
+      let sumBase = 0, sumConv = 0, sumStable = 0;
+      allPositions.forEach(a => {
+        sumBase += parseFloat(a.baseAlloc || 0);
+        sumConv += parseFloat(a.baseAlloc || 0) * rateToConv;
+        sumStable += parseFloat(a.baseAlloc || 0) * rateToUSD;
+      });
+      let recTable = `
+        <h2>Recommended Allocations</h2>
+        <p><strong>Total ${base} Entered:</strong> ${amount.toLocaleString()} ${base} |
+           <em>Equivalent in ${conv}:</em> ${(amount * rateToConv).toLocaleString()} ${conv},
+           in ${stable}: ${(amount * rateToUSD).toLocaleString()} ${stable}</p>
+        <table>
+          <tr>
+            <th>Category</th>
+            <th>Ticker</th>
+            <th>Base Alloc</th>
+            <th>${conv} Alloc</th>
+            <th>${stable} Alloc</th>
+          </tr>
+      `;
+      allPositions.forEach(a => {
+        const baseVal = parseFloat(a.baseAlloc || 0);
+        const convVal = roundToNearest(baseVal * rateToConv, rounding);
+        const stVal = roundToNearest(baseVal * rateToUSD, rounding);
+        recTable += `
+          <tr>
+            <td>${a.cat}</td>
+            <td>${a.ticker || "(none)"}</td>
+            <td>${baseVal.toLocaleString()}</td>
+            <td>${convVal.toLocaleString()}</td>
+            <td>${stVal.toLocaleString()}</td>
+          </tr>
+        `;
+      });
+      recTable += `
+          <tr>
+            <td colspan="2"><strong>Total</strong></td>
+            <td><strong>${sumBase.toLocaleString()} ${base}</strong></td>
+            <td><strong>${sumConv.toLocaleString()} ${conv}</strong></td>
+            <td><strong>${sumStable.toLocaleString()} ${stable}</strong></td>
+          </tr>
+        </table>
+      `;
+      
+      // Build Actual Allocations Table
+      let sumActBase = 0, sumActStable = 0, sumRemBase = 0, sumRemStable = 0;
+      allPositions.forEach(a => {
+        sumActBase += parseFloat(a.actualBaseAlloc || "0");
+        sumActStable += parseFloat(a.actualStableAlloc || "0");
+        sumRemBase += parseFloat(a.remainBase || "0");
+        sumRemStable += parseFloat(a.remainStable || "0");
+      });
+      let actTable = `
+        <h2>Actual Allocations</h2>
+        <table>
+          <tr>
+            <th>Category</th>
+            <th>Ticker</th>
+            <th>Actual Base Alloc</th>
+            <th>Actual Stable Alloc</th>
+            <th>Remain Base</th>
+            <th>Remain Stable</th>
+          </tr>
+      `;
+      allPositions.forEach(a => {
+        actTable += `
+          <tr>
+            <td>${a.cat}</td>
+            <td>${a.ticker || "(none)"}</td>
+            <td>${(parseFloat(a.actualBaseAlloc) || 0).toLocaleString()}</td>
+            <td>${(parseFloat(a.actualStableAlloc) || 0).toLocaleString()}</td>
+            <td>${(parseFloat(a.remainBase) || 0).toLocaleString()}</td>
+            <td>${(parseFloat(a.remainStable) || 0).toLocaleString()}</td>
+          </tr>
+        `;
+      });
+      actTable += `
+          <tr>
+            <td colspan="2"><strong>Total</strong></td>
+            <td><strong>${sumActBase.toLocaleString()}</strong></td>
+            <td><strong>${sumActStable.toLocaleString()}</strong></td>
+            <td><strong>${sumRemBase.toLocaleString()}</strong></td>
+            <td><strong>${sumRemStable.toLocaleString()}</strong></td>
+          </tr>
+        </table>
+      `;
+      
+      resultsDiv.innerHTML = recTable + "<br/>" + actTable;
+    }
+    
+    /* Reset all fields if Amount is 0 */
+    function resetAll(amount) {
+      if (amount === 0) {
+        [...corePositions, ...specPositions, ...reservePositions].forEach(pos => {
+          pos.baseAlloc = "0";
+          pos.stableAlloc = "0";
+          pos.actualBaseAlloc = "0";
+          pos.actualStableAlloc = "0";
+          pos.remainBase = "0";
+          pos.remainStable = "0";
+        });
+      }
+    }
+    
+    /* Theme Functions */
+    let themeModeIndex = 0;
+    const themeIcons = ["☀️", "🌙", "💻"];
+    const themeLabels = ["Light", "Dark", "System"];
+    function cycleTheme() {
+      themeModeIndex = (themeModeIndex + 1) % 3;
+      applyTheme();
+      showThemeStatus(themeLabels[themeModeIndex]);
+    }
+    function applyTheme() {
+      document.body.classList.remove("light-mode", "dark-mode", "system-mode");
+      if (themeModeIndex === 0) document.body.classList.add("light-mode");
+      else if (themeModeIndex === 1) document.body.classList.add("dark-mode");
+      else document.body.classList.add("system-mode");
+      document.getElementById("themeToggleBtn").textContent = themeIcons[themeModeIndex];
+      saveTheme();
+    }
+    function showThemeStatus(msg) {
+      const st = document.getElementById("themeStatus");
+      st.textContent = msg;
+      st.style.opacity = "1";
+      setTimeout(() => { st.style.opacity = "0"; }, 1500);
+    }
+    function saveTheme() {
+      localStorage.setItem("themeModeIndex", themeModeIndex.toString());
+    }
+    function loadTheme() {
+      const t = localStorage.getItem("themeModeIndex");
+      if (t !== null) {
+        themeModeIndex = parseInt(t, 10);
+        applyTheme();
+      }
+    }
+    
+    /* Download Popup Functions */
+    function showDownloadPopup() {
+      const pop = document.getElementById("downloadPopup");
+      pop.style.display = "flex";
+      pop.style.animation = "fadeIn 0.3s ease";
+    }
+    function closeDownloadPopup() {
+      document.getElementById("downloadPopup").style.display = "none";
+    }
+    
+    /* CSV & PDF Export Functions */
+    function downloadCSV() {
+      closeDownloadPopup();
+      const resultsEl = document.getElementById("results");
+      if (!resultsEl || !resultsEl.textContent.trim()) {
+        alert("No results to export. Please Calculate Allocations first.");
+        return;
+      }
+      const tables = Array.from(resultsEl.querySelectorAll("table"));
+      let csv = "";
+      let tableCounter = 1;
+      tables.forEach(tbl => {
+        csv += (tableCounter === 1 ? "Recommended Allocations\n" : "\nActual Allocations\n");
+        tableCounter++;
+        const rows = Array.from(tbl.querySelectorAll("tr"));
+        rows.forEach(row => {
+          const cells = Array.from(row.querySelectorAll("th,td")).map(c => c.innerText.replace(/,/g, ""));
+          csv += cells.join(",") + "\n";
+        });
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "allocation.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    function downloadPDF() {
+      closeDownloadPopup();
+      const resultsEl = document.getElementById("results");
+      if (!resultsEl || !resultsEl.textContent.trim()) {
+        alert("No results to export. Please Calculate Allocations first.");
+        return;
+      }
+      createPDF(resultsEl.innerHTML);
+    }
+    
+    function emailReport() {
+      closeDownloadPopup();
+      const resultsEl = document.getElementById("results");
+      if (!resultsEl || !resultsEl.innerText.trim()) {
+        alert("No results to export. Please Calculate Allocations first.");
+        return;
+      }
+      const reportText = encodeURIComponent(resultsEl.innerText);
+      const mailtoLink = "mailto:?subject=Smart%20Portfolio%20Allocator%20Report&body=" + reportText;
+      window.location.href = mailtoLink;
+    }
+    
+    /* Open Instructions in a New Window */
+    function openInstructionsWindow() {
+      // Determine theme from main document
+      const isDark = document.body.classList.contains("dark-mode");
+      const bgColor = isDark ? "#333" : "#fff";
+      const textColor = isDark ? "#fff" : "#000";
+      const instructionsHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Instructions - Smart Portfolio Allocator</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            background-color: ${bgColor};
+            color: ${textColor};
+            margin: 20px;
+          }
+          h3 { text-align: center; }
+          ul, ol { margin: 10px 20px; }
+          button {
+            padding: 4px 10px;
+            font-size: 0.9em;
+            margin-top: 20px;
+            cursor: pointer;
+          }
+        </style>
+      </head>
+      <body>
+        <h3>Smart Portfolio Allocator Instructions</h3>
+        <p><em>© CSQ Global 2025</em></p>
+        <h4>Overview</h4>
+        <ul>
+          <li>This tool helps you allocate a chosen amount of fiat or stablecoins across crypto positions.</li>
+          <li>It displays recommended amounts (<em>Base Alloc</em> and <em>Stable Alloc</em>) based on percentage splits and live exchange rates.</li>
+          <li>You can enter your actual allocation in either <em>Actual Base Alloc</em> or <em>Actual Stable Alloc</em>; the other auto‑calculates using current rates.</li>
+          <li>The <em>Remain</em> columns show the difference between recommended and actual allocations. Negative values are highlighted in red.</li>
+          <li>If you set “Amount to Invest” to zero and recalc, all fields reset to zero.</li>
+          <li>The “Allocate All Recommended → Actual” button fills all actual allocations to match the recommended values.</li>
+        </ul>
+        <h4>Step-by-Step</h4>
+        <ol>
+          <li><strong>Set Base &amp; Amount:</strong> Choose your base currency, enter the amount, and click “Get Live Rates.”</li>
+          <li><strong>Category Splits:</strong> Set your Core, Speculative, and Reserve percentages (they should total 100%).</li>
+          <li><strong>Add Positions:</strong> Click “Add Core/Spec/Reserve Position” to create rows. For each row, select a share percentage and (optionally) enter a ticker.</li>
+          <li><strong>Calculate:</strong> Click “Calculate Allocations” to populate recommended values.</li>
+          <li><strong>Actual Allocations:</strong> Enter your actual allocation in either “Actual Base Alloc” or “Actual Stable Alloc.” The tool auto‑calculates the other field and updates the “Remain” columns.</li>
+          <li><strong>Allocate All:</strong> Click “Allocate All Recommended → Actual” to instantly set actual allocations equal to recommended.</li>
+          <li><strong>Export:</strong> Use the Download popup options to export the report as PDF, CSV, or email it.</li>
+        </ol>
+        <button onclick="window.close()">Close Instructions</button>
+      </body>
+      </html>
+      `;
+      const instrWindow = window.open("", "Instructions", "width=450,height=600,resizable=yes,scrollbars=yes");
+      instrWindow.document.open();
+      instrWindow.document.write(instructionsHTML);
+      instrWindow.document.close();
+    }
+    
+    window.onload = function () {
+      loadTheme();
+      loadPreferences();
+      loadPositions();
+      renderAllPositions();
+      updateExchangeRates();
+    };
+  </script>
+</body>
+</html>
